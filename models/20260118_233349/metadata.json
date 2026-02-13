@@ -1,0 +1,1 @@
+{"feature_columns": ["height_cm", "weight_kg", "chest_cm", "waist_cm", "shoulder_width_cm", "arm_length_cm"], "extended_columns": ["arm_length_cm", "bmi", "build_index", "chest_cm", "chest_to_waist", "height_cm", "is_overweight", "shoulder_width_cm", "waist_cm", "weight_kg"]}

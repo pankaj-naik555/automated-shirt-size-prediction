@@ -1,0 +1,23 @@
+{
+  "version": "20260116_201615",
+  "timestamp": "2026-01-16T20:16:15.703314",
+  "feature_columns": [
+    "height_cm",
+    "weight_kg",
+    "chest_cm",
+    "waist_cm",
+    "shoulder_width_cm",
+    "arm_length_cm",
+    "bmi",
+    "chest_to_waist_ratio",
+    "height_to_weight_ratio"
+  ],
+  "size_classes": [
+    "L",
+    "M",
+    "S",
+    "XL",
+    "XS",
+    "XXL"
+  ]
+}

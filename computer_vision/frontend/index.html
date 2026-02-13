@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Body Measurement System - Shirt Size Predictor</title>
+    
+    <!-- Bootstrap 5 CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    
+    <!-- Bootstrap Icons -->
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.0/font/bootstrap-icons.css">
+    
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    
+    <!-- Socket.IO -->
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+</head>
+<body>
+    <!-- Navigation -->
+    <nav class="navbar navbar-expand-lg navbar-dark bg-primary">
+        <div class="container-fluid">
+            <a class="navbar-brand" href="#">
+                <i class="bi bi-rulers"></i> AI Body Measurement System
+            </a>
+            <button class="navbar-toggler" type="button" data-bs-toggle="collapse" data-bs-target="#navbarNav">
+                <span class="navbar-toggler-icon"></span>
+            </button>
+            <div class="collapse navbar-collapse" id="navbarNav">
+                <ul class="navbar-nav ms-auto">
+                    <li class="nav-item">
+                        <a class="nav-link active" href="#home">
+                            <i class="bi bi-house-door"></i> Home
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="#history">
+                            <i class="bi bi-clock-history"></i> History
+                        </a>
+                    </li>
+                </ul>
+            </div>
+        </div>
+    </nav>
+
+    <!-- Main Container -->
+    <div class="container-fluid mt-4">
+        <div class="row">
+            <!-- Left Column - Person Info & Controls -->
+            <div class="col-lg-3 mb-4">
+                <!-- Person Information Card -->
+                <div class="card mb-3">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-person-circle"></i> Person Information
+                    </div>
+                    <div class="card-body">
+                        <form id="personForm">
+                            <div class="mb-3">
+                                <label for="personName" class="form-label">Full Name *</label>
+                                <input type="text" class="form-control" id="personName" required>
+                            </div>
+                            <div class="mb-3">
+                                <label for="personEmail" class="form-label">Email</label>
+                                <input type="email" class="form-control" id="personEmail">
+                            </div>
+                            <div class="mb-3">
+                                <label for="personPhone" class="form-label">Phone Number</label>
+                                <input type="tel" class="form-control" id="personPhone">
+                            </div>
+                            <div class="mb-3">
+                                <label for="actualSize" class="form-label">Known Shirt Size</label>
+                                <select class="form-select" id="actualSize">
+                                    <option value="">Select if known...</option>
+                                    <option value="XS">XS</option>
+                                    <option value="S">S</option>
+                                    <option value="M">M</option>
+                                    <option value="L">L</option>
+                                    <option value="XL">XL</option>
+                                    <option value="XXL">XXL</option>
+                                </select>
+                            </div>
+                            <button type="submit" class="btn btn-primary w-100">
+                                <i class="bi bi-person-plus"></i> Register Person
+                            </button>
+                        </form>
+                        
+                        <hr>
+                        
+                        <!-- Select Existing Person -->
+                        <div class="mb-3">
+                            <label for="selectPerson" class="form-label">Select Existing Person</label>
+                            <select class="form-select" id="selectPerson">
+                                <option value="">Loading...</option>
+                            </select>
+                        </div>
+                        
+                        <!-- Current Person Display -->
+                        <div id="currentPerson" class="alert alert-success d-none">
+                            <strong><i class="bi bi-check-circle"></i> Active:</strong> 
+                            <span id="currentPersonName"></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Camera Settings Card -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <i class="bi bi-camera-video"></i> Camera Configuration
+                    </div>
+                    <div class="card-body">
+                        <div class="mb-3">
+                            <label for="cameraSource" class="form-label">Camera Source</label>
+                            <select class="form-select" id="cameraSource">
+                                <option value="0">📷 USB Webcam (0)</option>
+                                <option value="1">📷 USB Webcam (1) - DroidCam</option>
+                                <option value="2">📷 USB Webcam (2)</option>
+                                <option value="usb_tether">📱 Phone USB Tethering + IP Webcam</option>
+                                <option value="adb">📱 Phone ADB + IP Webcam</option>
+                                <option value="ip">🌐 IP Camera (Custom URL)</option>
+                            </select>
+                        </div>
+
+                        <!-- USB Tethering Setup -->
+                        <div class="mb-3 d-none" id="usbTetherDiv">
+                            <label class="form-label fw-bold">USB Tethering Setup</label>
+                            <div class="alert alert-info py-2">
+                                <small>
+                                    <strong>Steps:</strong><br>
+                                    1. Install "IP Webcam" app on phone<br>
+                                    2. Enable USB tethering on phone<br>
+                                    3. Start IP Webcam app<br>
+                                    4. Enter phone's tethering IP below
+                                </small>
+                            </div>
+                            <input type="text" class="form-control mb-2" id="usbTetherIp" 
+                                placeholder="Phone IP (e.g., 192.168.42.129)" value="192.168.42.129">
+                            <input type="text" class="form-control" id="usbTetherPort" 
+                                placeholder="Port (default: 8080)" value="8080">
+                            <small class="text-muted">Check phone's IP in IP Webcam app</small>
+                        </div>
+
+                        <!-- ADB Setup -->
+                        <div class="mb-3 d-none" id="adbDiv">
+                            <label class="form-label fw-bold">ADB Port Forward Setup</label>
+                            <div class="alert alert-warning py-2">
+                                <small>
+                                    <strong>Prerequisites:</strong><br>
+                                    • ADB installed on computer<br>
+                                    • USB Debugging enabled on phone<br>
+                                    • IP Webcam app installed<br>
+                                    <br>
+                                    <strong>Steps:</strong><br>
+                                    1. Connect phone via USB<br>
+                                    2. Open terminal/command prompt<br>
+                                    3. Run: <code>adb forward tcp:8080 tcp:8080</code><br>
+                                    4. Start IP Webcam on phone<br>
+                                    5. Click "Start Camera" below
+                                </small>
+                            </div>
+                        </div>
+                        <div class="mb-3">
+                        <label class="form-label">Calibration Method</label>
+                            <select class="form-select" id="calibrationMethod">
+                                <option value="height">Manual Height Input</option>
+                                <option value="credit_card">Credit Card Reference</option>
+                                <option value="a4_paper">A4 Paper Reference</option>
+                            </select>
+                        <button class="btn btn-secondary mt-2" id="calibrateBtn">
+                            <i class="bi bi-camera"></i> Calibrate Now
+                        </button>
+                        </div>
+                        <!-- IP Camera Setup -->
+                        <div class="mb-3 d-none" id="ipCameraDiv">
+                            <label for="ipCameraUrl" class="form-label fw-bold">IP Camera URL</label>
+                            <input type="text" class="form-control mb-2" id="ipCameraUrl" 
+                                placeholder="http://192.168.1.100:8080/video">
+                            <small class="text-muted">Enter full URL including http:// and /video</small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="heightInput" class="form-label">
+                                <i class="bi bi-person-standing"></i> Height (cm) - Optional
+                            </label>
+                            <input type="number" class="form-control" id="heightInput" 
+                                placeholder="170" min="100" max="250">
+                            <small class="text-muted">For better calibration accuracy</small>
+                        </div>
+
+                        <button id="startCameraBtn" class="btn btn-success w-100 mb-2">
+                            <i class="bi bi-camera"></i> Start Camera
+                        </button>
+                        <button id="stopCameraBtn" class="btn btn-danger w-100 d-none">
+                            <i class="bi bi-stop-circle"></i> Stop Camera
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Instructions Card -->
+                <div class="card">
+                    <div class="card-header bg-warning">
+                        <i class="bi bi-info-circle"></i> How to Use
+                    </div>
+                    <div class="card-body">
+                        <ol class="mb-0 small">
+                            <li>Register or select a person</li>
+                            <li>Choose camera source</li>
+                            <li>Configure camera if needed</li>
+                            <li>Start camera feed</li>
+                            <li>Stand 2-3 meters away</li>
+                            <li>Ensure full body is visible</li>
+                            <li>Stand straight, arms slightly away</li>
+                            <li>Wait for green pose detection</li>
+                            <li>Click "Predict Size"</li>
+                        </ol>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Middle Column - Camera Feed & Results -->
+            <div class="col-lg-6 mb-4">
+                <!-- Camera Feed Card -->
+                <div class="card mb-3">
+                    <div class="card-header bg-dark text-white d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-camera-video"></i> Live Camera Feed</span>
+                        <span id="cameraStatus" class="badge bg-secondary">Not Connected</span>
+                    </div>
+                    <div class="card-body text-center p-0">
+                        <div id="cameraContainer" style="position: relative; min-height: 500px; background: #000;">
+                            <img id="cameraFeed" class="img-fluid d-none" style="max-height: 600px;">
+                            <div id="cameraPlaceholder" class="d-flex align-items-center justify-content-center" 
+                                 style="height: 500px; background: linear-gradient(135deg, #0d6efd 0%, #0dcaf0 100%);">
+                                <div class="text-white text-center">
+                                    <i class="bi bi-camera-video-off" style="font-size: 5rem;"></i>
+                                    <p class="mt-3 h5">Camera Not Started</p>
+                                    <p class="text-white-50">Configure settings and click Start Camera</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-footer">
+                        <button id="findSizeBtn" class="btn btn-primary btn-lg w-100" disabled>
+                            <i class="bi bi-search"></i> Predict Shirt Size
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Prediction Result Card -->
+                <div id="predictionCard" class="card d-none">
+                    <div class="card-header bg-success text-white">
+                        <i class="bi bi-check-circle"></i> Prediction Result
+                    </div>
+                    <div class="card-body">
+                        <!-- Predicted Size Display -->
+                        <div class="text-center mb-4 p-4 bg-light rounded">
+                            <h5 class="text-muted mb-2">Recommended Shirt Size</h5>
+                            <h1 class="display-1 fw-bold text-primary mb-0" id="predictedSize">M</h1>
+                        </div>
+                        
+                        <!-- Measurement Details -->
+                        <h6 class="mb-3">Body Measurements:</h6>
+                        <div class="row g-3">
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-arrows-vertical text-primary"></i> Height</span>
+                                            <strong id="resultHeight">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-speedometer text-success"></i> Weight</span>
+                                            <strong id="resultWeight">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-file-earmark-person text-info"></i> Chest</span>
+                                            <strong id="resultChest">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-bezier2 text-warning"></i> Waist</span>
+                                            <strong id="resultWaist">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-arrow-left-right text-danger"></i> Shoulder</span>
+                                            <strong id="resultShoulder">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="card bg-light">
+                                    <div class="card-body p-3">
+                                        <div class="d-flex justify-content-between align-items-center">
+                                            <span><i class="bi bi-broadcast text-secondary"></i> Arm</span>
+                                            <strong id="resultArm">---</strong>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-4 text-end">
+                            <button class="btn btn-outline-primary btn-sm" id="saveResultBtn">
+                                <i class="bi bi-save"></i> Save Result
+                            </button>
+                            <button class="btn btn-outline-secondary btn-sm" id="exportResultBtn">
+                                <i class="bi bi-download"></i> Export PDF
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Right Column - Live Measurements & Stats -->
+            <div class="col-lg-3 mb-4">
+                <!-- Live Measurements Card -->
+                <div class="card mb-3">
+                    <div class="card-header bg-info text-white">
+                        <i class="bi bi-activity"></i> Live Measurements
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-arrows-vertical text-primary"></i> Height</span>
+                                <strong id="heightValue">--- cm</strong>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-file-earmark-person text-success"></i> Chest</span>
+                                <strong id="chestValue">--- cm</strong>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-bezier2 text-warning"></i> Waist</span>
+                                <strong id="waistValue">--- cm</strong>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-arrow-left-right text-info"></i> Shoulder</span>
+                                <strong id="shoulderValue">--- cm</strong>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-broadcast text-danger"></i> Arm</span>
+                                <strong id="armValue">--- cm</strong>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-speedometer text-secondary"></i> Weight</span>
+                                <strong id="weightValue">--- kg</strong>
+                            </div>
+                        </div>
+                        
+                        <div class="mt-3 text-center">
+                            <span id="poseStatus" class="badge bg-secondary">
+                                <i class="bi bi-circle"></i> No Pose Detected
+                            </span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Statistics Card -->
+                <div class="card">
+                    <div class="card-header bg-primary text-white">
+                        <i class="bi bi-graph-up"></i> Statistics
+                    </div>
+                    <div class="card-body">
+                        <div class="list-group list-group-flush">
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-people"></i> Total Persons</span>
+                                <span class="badge bg-primary rounded-pill" id="totalPersons">0</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-rulers"></i> Measurements</span>
+                                <span class="badge bg-success rounded-pill" id="totalMeasurements">0</span>
+                            </div>
+                            <div class="list-group-item d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-check-circle"></i> Avg Confidence</span>
+                                <span class="badge bg-info rounded-pill" id="avgConfidence">0%</span>
+                            </div>
+                        </div>
+                        <button class="btn btn-outline-primary btn-sm w-100 mt-3" id="refreshStatsBtn">
+                            <i class="bi bi-arrow-clockwise"></i> Refresh
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Measurement History Section -->
+        <div class="row mt-4" id="history">
+            <div class="col-12">
+                <div class="card">
+                    <div class="card-header bg-dark text-white">
+                        <i class="bi bi-clock-history"></i> Measurement History
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover align-middle" id="historyTable">
+                                <thead class="table-dark">
+                                    <tr>
+                                        <th>Date</th>
+                                        <th>Person</th>
+                                        <th>Size</th>
+                                        <th>Height</th>
+                                        <th>Chest</th>
+                                        <th>Waist</th>
+                                        <th>Actions</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="historyTableBody">
+                                    <tr>
+                                        <td colspan="7" class="text-center text-muted">
+                                            <i class="bi bi-inbox"></i> No measurements yet
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Bootstrap JS -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    
+    <!-- Custom JavaScript -->
+    <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+    
+    <!-- Toast Notifications Container -->
+    <div class="toast-container position-fixed bottom-0 end-0 p-3">
+        <div id="notificationToast" class="toast" role="alert">
+            <div class="toast-header">
+                <strong class="me-auto" id="toastTitle">Notification</strong>
+                <button type="button" class="btn-close" data-bs-dismiss="toast"></button>
+            </div>
+            <div class="toast-body" id="toastMessage">
+                Message
+            </div>
+        </div>
+    </div>
+</body>
+</html>
